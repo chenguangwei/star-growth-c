@@ -1,0 +1,268 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { RewardCard } from "@/components/RewardCard";
+import { StarDisplay } from "@/components/StarDisplay";
+import {
+  getCurrentChild,
+} from "@/lib/children";
+import {
+  addRewardExchange,
+  getRewardExchanges,
+} from "@/lib/data";
+import {
+  DEFAULT_REWARDS,
+  starsToCoins,
+  calculateCoinRate,
+} from "@/lib/rules";
+import { calculateAvailableStars } from "@/lib/calculations";
+import type { Reward, RewardExchange } from "@/types";
+import { Gift, History } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { AlertCircle } from "lucide-react";
+import { getTodayDate } from "@/lib/data";
+
+export default function RewardsPage() {
+  const router = useRouter();
+  const [currentChild, setCurrentChild] = useState(getCurrentChild());
+  const [rewards] = useState<Reward[]>(DEFAULT_REWARDS);
+  const [exchanges, setExchanges] = useState<RewardExchange[]>([]);
+  const [availableStars, setAvailableStars] = useState(0);
+  const [exchangeDialogOpen, setExchangeDialogOpen] = useState(false);
+  const [selectedReward, setSelectedReward] = useState<Reward | null>(null);
+
+  useEffect(() => {
+    const child = getCurrentChild();
+    if (!child) {
+      router.push("/children");
+    } else {
+      setCurrentChild(child);
+      loadData();
+    }
+  }, [router]);
+
+  const loadData = () => {
+    if (!currentChild) return;
+
+    const allExchanges = getRewardExchanges(currentChild.id);
+    setExchanges(allExchanges);
+
+    // 使用统一的计算函数
+    setAvailableStars(calculateAvailableStars(currentChild.id));
+  };
+
+  const handleExchange = (reward: Reward) => {
+    setSelectedReward(reward);
+    setExchangeDialogOpen(true);
+  };
+
+  const handleConfirmExchange = () => {
+    if (!selectedReward || !currentChild) return;
+
+    if (availableStars < selectedReward.starsCost) {
+      alert("星星不足，无法兑换");
+      return;
+    }
+
+    addRewardExchange({
+      childId: currentChild.id,
+      rewardId: selectedReward.id,
+      rewardName: selectedReward.name,
+      starsCost: selectedReward.starsCost,
+      status: "used",
+    });
+
+    loadData();
+    setExchangeDialogOpen(false);
+    setSelectedReward(null);
+  };
+
+  if (!currentChild) {
+    return (
+      <div className="container mx-auto p-6">
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <AlertCircle className="h-16 w-16 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">请先选择孩子</h3>
+            <Button onClick={() => router.push("/children")}>
+              前往添加孩子
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const coinRate = calculateCoinRate(currentChild.totalStars);
+  const canGetCoins = availableStars >= 40;
+
+  return (
+    <div className="container mx-auto p-6 max-w-6xl">
+      <div className="mb-6">
+        <div className="flex items-center gap-3 mb-2">
+          <Gift className="h-6 w-6" />
+          <h1 className="text-3xl font-bold">梦想兑换站</h1>
+        </div>
+        <p className="text-muted-foreground">
+          用获得的星星兑换心仪的奖励吧！
+        </p>
+      </div>
+
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">可用星星</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <StarDisplay count={availableStars} size="lg" />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">兑换比例</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-1">
+              <p className="text-sm">
+                {canGetCoins ? (
+                  <>
+                    <span className="font-semibold">2 星星 = 1 元</span>
+                    <span className="text-muted-foreground ml-2">
+                      (超过40星)
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="font-semibold">3 星星 = 1 元</span>
+                    <span className="text-muted-foreground ml-2">
+                      (低于40星)
+                    </span>
+                  </>
+                )}
+              </p>
+              {currentChild.totalStars >= 200 && (
+                <p className="text-xs text-muted-foreground">
+                  超过200星特殊规则：星星数 × 0.8
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">可兑换金额</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">
+              ¥{starsToCoins(availableStars, currentChild.totalStars).toFixed(2)}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold mb-4">奖励列表</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {rewards.map((reward) => (
+            <RewardCard
+              key={reward.id}
+              reward={reward}
+              availableStars={availableStars}
+              onExchange={handleExchange}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="mb-6">
+        <div className="flex items-center gap-2 mb-4">
+          <History className="h-5 w-5" />
+          <h2 className="text-xl font-semibold">兑换历史</h2>
+        </div>
+        {exchanges.length === 0 ? (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <Gift className="h-12 w-12 text-muted-foreground mb-2" />
+              <p className="text-muted-foreground">还没有兑换记录</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {exchanges.map((exchange) => (
+              <Card key={exchange.id}>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold">{exchange.rewardName}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {exchange.date}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">
+                        -{exchange.starsCost}
+                      </span>
+                      <span className="text-yellow-500">✨</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <Dialog open={exchangeDialogOpen} onOpenChange={setExchangeDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>确认兑换</DialogTitle>
+            <DialogDescription>
+              确定要用 {selectedReward?.starsCost} 个星星兑换{" "}
+              {selectedReward?.name} 吗？
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">当前星星：</span>
+                <span className="font-semibold">{availableStars} ✨</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">兑换消耗：</span>
+                <span className="font-semibold text-red-500">
+                  -{selectedReward?.starsCost} ✨
+                </span>
+              </div>
+              <div className="flex justify-between pt-2 border-t">
+                <span className="text-muted-foreground">剩余星星：</span>
+                <span className="font-semibold">
+                  {availableStars - (selectedReward?.starsCost || 0)} ✨
+                </span>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setExchangeDialogOpen(false)}
+            >
+              取消
+            </Button>
+            <Button onClick={handleConfirmExchange}>确认兑换</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
