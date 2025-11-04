@@ -107,15 +107,16 @@ export default function TasksPage() {
       if (!taskItem.taskName) taskItem.taskName = rule.name;
     } else {
       // 如果传入的是对象，合并更新
+      // 先展开已有数据与更新，再写入标准化字段，避免同名键重复警告
       taskItem = {
+        ...existing,
+        ...updates,
         taskId,
         taskName: rule.name,
         completed: existing?.completed || false,
         stars: existing?.stars || 0,
         count: existing?.count || 0,
         metadata: existing?.metadata,
-        ...existing,
-        ...updates,
       };
     }
 
