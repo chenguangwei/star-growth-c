@@ -40,6 +40,7 @@ export default function TasksPage() {
   const router = useRouter();
   const [currentChild, setCurrentChild] = useState(getCurrentChild());
   const [todayRecord, setTodayRecord] = useState<DailyTaskRecord | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string>(getTodayDate());
   const [inputDialogOpen, setInputDialogOpen] = useState(false);
   const [inputTaskId, setInputTaskId] = useState<string | null>(null);
   const [inputData, setInputData] = useState<Record<string, any>>({});
@@ -63,20 +64,20 @@ export default function TasksPage() {
 
   useEffect(() => {
     if (currentChild) {
-      loadTodayRecord();
+      loadRecordForDate(selectedDate);
     }
-  }, [currentChild]);
+  }, [currentChild, selectedDate]);
 
-  const loadTodayRecord = () => {
+  const loadRecordForDate = (date: string) => {
     if (!currentChild) return;
-    const record = getDailyTaskRecord(currentChild.id);
+    const record = getDailyTaskRecord(currentChild.id, date);
     if (record) {
       setTodayRecord(record);
     } else {
       // 创建新记录
       const newRecord: DailyTaskRecord = {
         childId: currentChild.id,
-        date: getTodayDate(),
+        date,
         tasks: {},
         totalStars: 0,
       };
@@ -280,10 +281,28 @@ export default function TasksPage() {
   return (
     <div className="container mx-auto p-6 max-w-4xl">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">每日任务</h1>
-        <p className="text-muted-foreground">
-          今天是 {new Date().toLocaleDateString("zh-CN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
-        </p>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div>
+            <h1 className="text-3xl font-bold mb-1">每日任务</h1>
+            <p className="text-muted-foreground">
+              当前日期：{new Date(selectedDate + "T00:00:00").toLocaleDateString("zh-CN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+            <Button
+              variant="outline"
+              onClick={() => setSelectedDate(getTodayDate())}
+            >
+              回到今天
+            </Button>
+          </div>
+        </div>
       </div>
 
       <div className="mb-6 space-y-4">

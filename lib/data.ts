@@ -68,16 +68,22 @@ export function saveDailyTaskRecord(record: DailyTaskRecord): void {
     (r) => r.childId === record.childId && r.date === record.date
   );
 
+  let delta = record.totalStars;
   if (index >= 0) {
+    const old = records[index];
     records[index] = record;
+    delta = record.totalStars - (old?.totalStars || 0);
   } else {
     records.push(record);
+    delta = record.totalStars; // 新增记录，按当日总星星累计
   }
 
   localStorage.setItem(STORAGE_KEYS.DAILY_TASKS, JSON.stringify(records));
   
-  // 更新孩子的星星总数
-  updateChildStars(record.childId, record.totalStars);
+  // 仅按增量更新孩子星星总数，避免重复累计
+  if (delta !== 0) {
+    updateChildStars(record.childId, delta);
+  }
 }
 
 // ============ 单元测验数据管理 ============
