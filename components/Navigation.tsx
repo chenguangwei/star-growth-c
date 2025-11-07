@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, CheckCircle2, GraduationCap, Gift, TrendingUp, Settings, Users } from "lucide-react";
+import { Home, CheckCircle2, GraduationCap, Gift, TrendingUp, Settings, Users, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
+import { signOut } from "next-auth/react";
+import { Button } from "@/components/ui/button";
 
 const navItems = [
   { href: "/", label: "首页", icon: Home },
@@ -17,6 +20,7 @@ const navItems = [
 
 export function Navigation() {
   const pathname = usePathname();
+  const { user, isAuthenticated } = useAuth();
 
   return (
     <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -27,8 +31,9 @@ export function Navigation() {
             <span>星星成长</span>
           </Link>
           <div className="flex-1" />
-          <div className="flex items-center gap-1">
-            {navItems.map((item) => {
+          {isAuthenticated && (
+            <div className="flex items-center gap-1">
+              {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
               return (
@@ -47,7 +52,22 @@ export function Navigation() {
                 </Link>
               );
             })}
-          </div>
+            </div>
+          )}
+          {isAuthenticated && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">{user?.email}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => signOut({ callbackUrl: "/auth/signin" })}
+                className="gap-2"
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden md:inline">退出</span>
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </nav>

@@ -18,17 +18,46 @@
 - **样式**: Tailwind CSS
 - **UI组件**: shadcn/ui
 - **动画**: Framer Motion
-- **数据可视化**: Recharts
+- **数据存储**: Supabase (PostgreSQL)
+- **认证**: NextAuth.js + Supabase Auth
 - **图标**: Lucide React
-- **数据存储**: localStorage (开发阶段)
+- **数据可视化**: Recharts
 
 ## 开始使用
+
+### 前置要求
+
+1. 创建 Supabase 项目（访问 [supabase.com](https://supabase.com)）
+2. 获取 Supabase 项目 URL 和 API 密钥
 
 ### 安装依赖
 
 ```bash
 npm install
 ```
+
+### 环境变量配置
+
+创建 `.env.local` 文件并配置以下变量：
+
+```bash
+# Supabase 配置
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+
+# NextAuth.js 配置
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your_nextauth_secret_key
+```
+
+详细配置说明请查看 [ENV_SETUP.md](./ENV_SETUP.md)
+
+### 数据库设置
+
+1. 在 Supabase Dashboard 中打开 SQL Editor
+2. 执行 `supabase/migrations/001_initial_schema.sql` 中的 SQL 脚本
+3. 这将创建所有必需的表和 Row Level Security (RLS) 策略
 
 ### 启动开发服务器
 
@@ -37,6 +66,8 @@ npm run dev
 ```
 
 打开 [http://localhost:3000](http://localhost:3000) 查看应用。
+
+首次使用需要注册账号并登录。
 
 ### 构建生产版本
 
@@ -134,14 +165,16 @@ star-growth-c/
 
 ## 注意事项
 
-- 数据存储在浏览器的localStorage中，清除浏览器数据会丢失所有记录
-- 建议定期备份数据（导出功能待开发）
+- 数据存储在 Supabase 云端数据库中，支持多设备同步
+- 使用 NextAuth.js 进行身份认证，每个用户的数据完全隔离
+- 所有数据操作都通过 Row Level Security (RLS) 策略保护
 - 父母管理后台密码可以在代码中修改（默认：admin123）
 - 所有操作都有操作日志记录（在管理后台可见）
 
 ## 开发计划
 
-- [ ] 数据库集成（替换localStorage）
+- [x] 数据库集成（Supabase）
+- [x] NextAuth.js 认证
 - [ ] 数据导出/导入功能
 - [ ] PWA支持，可安装到手机桌面
 - [ ] 成就系统
