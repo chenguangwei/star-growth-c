@@ -96,17 +96,44 @@ export async function POST(request: NextRequest) {
         }
       : null;
 
-    const { error } = await supabase.from("task_rules").upsert({
-      child_id: childId,
-      rule_id: rule.id,
-      name: rule.name,
-      description: rule.description,
-      base_stars: rule.baseStars,
-      max_count: rule.maxCount || null,
-      type: rule.type,
-      input_config: inputConfig,
-      enabled: true,
-    });
+    // 先检查记录是否存在
+    const { data: existing } = await supabase
+      .from("task_rules")
+      .select("id")
+      .eq("child_id", childId)
+      .eq("rule_id", rule.id)
+      .maybeSingle();
+
+    let error;
+    if (existing) {
+      // 如果记录存在，执行更新
+      ({ error } = await supabase
+        .from("task_rules")
+        .update({
+          name: rule.name,
+          description: rule.description,
+          base_stars: rule.baseStars,
+          max_count: rule.maxCount || null,
+          type: rule.type,
+          input_config: inputConfig,
+          enabled: true,
+        })
+        .eq("child_id", childId)
+        .eq("rule_id", rule.id));
+    } else {
+      // 如果记录不存在，执行插入
+      ({ error } = await supabase.from("task_rules").insert({
+        child_id: childId,
+        rule_id: rule.id,
+        name: rule.name,
+        description: rule.description,
+        base_stars: rule.baseStars,
+        max_count: rule.maxCount || null,
+        type: rule.type,
+        input_config: inputConfig,
+        enabled: true,
+      }));
+    }
 
     if (error) {
       console.error("保存任务规则失败:", error);
