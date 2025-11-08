@@ -242,6 +242,44 @@ export const DEFAULT_DAILY_TASK_RULES: DailyTaskRule[] = [
 // 为了向后兼容，保留 DAILY_TASK_RULES 作为默认规则的别名
 export const DAILY_TASK_RULES = DEFAULT_DAILY_TASK_RULES;
 
+// 获取孩子的奖励列表（优先从数据库读取，如果没有则使用默认奖励）
+export async function getChildRewards(childId?: string): Promise<Reward[]> {
+  if (!childId) {
+    // 如果没有孩子ID，返回默认奖励
+    return DEFAULT_REWARDS;
+  }
+
+  try {
+    // 通过 API 路由获取奖励列表（绕过 RLS）
+    const response = await fetch(`/api/rewards?childId=${childId}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    const childRewards = result.rewards || [];
+    
+    // 合并默认奖励和自定义奖励（去重，自定义奖励优先）
+    const rewardMap = new Map<string, Reward>();
+    
+    // 先添加默认奖励
+    DEFAULT_REWARDS.forEach((reward) => {
+      rewardMap.set(reward.id, reward);
+    });
+    
+    // 再添加自定义奖励（会覆盖同ID的默认奖励）
+    childRewards.forEach((reward: Reward) => {
+      rewardMap.set(reward.id, reward);
+    });
+    
+    return Array.from(rewardMap.values());
+  } catch (error) {
+    console.error("获取孩子奖励列表失败:", error);
+    // 出错时返回默认奖励
+    return DEFAULT_REWARDS;
+  }
+}
+
 // 获取孩子的任务规则（优先从数据库读取，如果没有则使用默认规则）
 export async function getChildTaskRules(childId?: string): Promise<DailyTaskRule[]> {
   if (!childId) {

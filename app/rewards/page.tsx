@@ -24,6 +24,7 @@ import {
   DEFAULT_REWARDS,
   starsToCoins,
   calculateCoinRate,
+  getChildRewards,
 } from "@/lib/rules";
 import { calculateAvailableStars } from "@/lib/calculations";
 import type { Reward, RewardExchange } from "@/types";
@@ -35,7 +36,7 @@ import { getTodayDate } from "@/lib/data";
 export default function RewardsPage() {
   const router = useRouter();
   const [currentChild, setCurrentChild] = useState(getCurrentChild());
-  const [rewards] = useState<Reward[]>(DEFAULT_REWARDS);
+  const [rewards, setRewards] = useState<Reward[]>(DEFAULT_REWARDS);
   const [exchanges, setExchanges] = useState<RewardExchange[]>([]);
   const [availableStars, setAvailableStars] = useState(0);
   const [exchangeDialogOpen, setExchangeDialogOpen] = useState(false);
@@ -80,8 +81,17 @@ export default function RewardsPage() {
     loadChild();
   }, [router]);
 
-  const loadData = () => {
+  const loadData = async () => {
     if (!currentChild) return;
+
+    // 加载奖励列表（包含自定义奖励）
+    try {
+      const childRewards = await getChildRewards(currentChild.id);
+      setRewards(childRewards);
+    } catch (error) {
+      console.error("加载奖励列表失败:", error);
+      setRewards(DEFAULT_REWARDS);
+    }
 
     const allExchanges = getRewardExchanges(currentChild.id);
     setExchanges(allExchanges);
@@ -214,7 +224,15 @@ export default function RewardsPage() {
       </div>
 
       <div className="mb-6">
-        <h2 className="text-xl font-semibold mb-4">奖励列表</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold">奖励列表</h2>
+          <Button
+            variant="outline"
+            onClick={() => router.push("/rewards/manage")}
+          >
+            管理奖励
+          </Button>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {rewards.map((reward) => (
             <RewardCard
