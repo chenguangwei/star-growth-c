@@ -167,8 +167,46 @@ export default function QuizPage() {
     })();
   };
 
-  const handleMarkCorrected = (recordId: string) => {
-    updateQuizRecord(recordId, { corrected: true });
+  const handleMarkCorrected = async (recordId: string) => {
+    // 找到对应的记录
+    const record = records.find((r) => r.id === recordId);
+    if (!record) return;
+
+    // 如果是3颗星且还没有奖励星星，完成订正后应该奖励5颗星
+    let newRewardStars = record.rewardStars;
+    if (record.grade === 3 && record.rewardStars === 0) {
+      const rule = QUIZ_RULES.find((r) => r.grade === 3);
+      if (rule?.specialTasks && rule.specialTasks.length > 0) {
+        newRewardStars = rule.specialTasks[0].rewardStars; // 5颗星
+      }
+    }
+
+    // 更新记录
+    updateQuizRecord(recordId, { 
+      corrected: true,
+      rewardStars: newRewardStars,
+    });
+    
+    // 同步到 Supabase
+    try {
+      const response = await fetch(`/api/quiz-records/${recordId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          corrected: true,
+          rewardStars: newRewardStars,
+        }),
+      });
+
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || "更新失败");
+      }
+    } catch (error) {
+      console.error("同步到 Supabase 失败:", error);
+      // 即使 Supabase 失败，localStorage 已经更新，不影响用户体验
+    }
+
     loadRecords();
   };
 
