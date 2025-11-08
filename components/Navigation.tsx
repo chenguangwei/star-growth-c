@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, CheckCircle2, GraduationCap, Gift, TrendingUp, Settings, Users, LogOut } from "lucide-react";
+import { Home, CheckCircle2, GraduationCap, Gift, TrendingUp, Settings, Users, LogOut, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { signOut } from "next-auth/react";
@@ -15,6 +15,7 @@ const navItems = [
   { href: "/rewards", label: "兑换站", icon: Gift },
   { href: "/stats", label: "统计", icon: TrendingUp },
   { href: "/children", label: "孩子管理", icon: Users },
+  { href: "/rules", label: "规则管理", icon: BookOpen },
   { href: "/settings", label: "设置", icon: Settings },
 ];
 

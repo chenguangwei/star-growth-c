@@ -9,11 +9,11 @@ import {
   getCurrentChild,
 } from "@/lib/children";
 import {
-  getDailyTaskRecord,
-  getAllDailyTaskRecords,
+  getDailyTaskRecordSync,
+  getAllDailyTaskRecordsSync,
   getTodayDate,
 } from "@/lib/data";
-import { calculateAvailableStars } from "@/lib/calculations";
+import { calculateAvailableStars, calculateTotalEarnedStars } from "@/lib/calculations";
 import { Calendar, CheckCircle2, GraduationCap, Gift, TrendingUp } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -25,44 +25,119 @@ export default function HomePage() {
   const [todayStars, setTodayStars] = useState(0);
   const [weeklyStars, setWeeklyStars] = useState(0);
   const [availableStars, setAvailableStars] = useState(0);
+  const [totalEarnedStars, setTotalEarnedStars] = useState(0);
 
-  const loadDataForChild = useCallback((child: any) => {
+  const loadDataForChild = useCallback(async (child: any) => {
     if (!child) return;
 
-    // 今日星星
-    const todayRecord = getDailyTaskRecord(child.id);
+    // 今日星星（先尝试从 localStorage 读取）
+    const todayRecord = getDailyTaskRecordSync(child.id);
     setTodayStars(todayRecord?.totalStars || 0);
+    
+    // 如果 localStorage 没有，从 Supabase 同步
+    if (!todayRecord) {
+      try {
+        const { getDailyTaskRecord } = await import("@/lib/data");
+        const record = await getDailyTaskRecord(child.id);
+        setTodayStars(record?.totalStars || 0);
+      } catch (error) {
+        console.error("加载今日任务记录失败:", error);
+      }
+    }
 
-    // 本周星星
+    // 本周星星（先尝试从 localStorage 读取）
+    const allRecords = getAllDailyTaskRecordsSync(child.id);
     const today = new Date();
     const weekStart = new Date(today);
     weekStart.setDate(today.getDate() - today.getDay());
     weekStart.setHours(0, 0, 0, 0);
 
-    const allRecords = getAllDailyTaskRecords(child.id);
-    const weekRecords = allRecords.filter(
+    let weekRecords = allRecords.filter(
       (r) => new Date(r.date) >= weekStart
     );
+    
+    // 如果 localStorage 数据不足，从 Supabase 同步
+    if (allRecords.length === 0) {
+      try {
+        const { getAllDailyTaskRecords } = await import("@/lib/data");
+        const records = await getAllDailyTaskRecords(child.id);
+        weekRecords = records.filter(
+          (r) => new Date(r.date) >= weekStart
+        );
+      } catch (error) {
+        console.error("加载任务记录失败:", error);
+      }
+    }
+    
     const weekly = weekRecords.reduce((sum, r) => sum + r.totalStars, 0);
     setWeeklyStars(weekly);
 
-    // 可用星星（使用统一计算函数）
-    setAvailableStars(calculateAvailableStars(child.id));
+    // 可用星星（使用统一计算函数，异步从 Supabase 同步）
+    calculateAvailableStars(child.id).then((stars) => {
+      setAvailableStars(stars);
+    }).catch((error) => {
+      console.error("计算可用星星失败:", error);
+      // 如果异步计算失败，使用同步版本（仅从 localStorage）
+      const { calculateAvailableStarsSync } = require("@/lib/calculations");
+      setAvailableStars(calculateAvailableStarsSync(child.id));
+    });
+
+    // 总获得星星（从所有记录中计算，异步从 Supabase 同步）
+    calculateTotalEarnedStars(child.id).then((stars) => {
+      setTotalEarnedStars(stars);
+    }).catch((error) => {
+      console.error("计算总获得星星失败:", error);
+      // 如果异步计算失败，使用同步版本（仅从 localStorage）
+      const { getAllDailyTaskRecordsSync, getQuizRecordsSync } = require("@/lib/data");
+      const dailyRecords = getAllDailyTaskRecordsSync(child.id);
+      const quizRecords = getQuizRecordsSync(child.id);
+      const dailyStars = dailyRecords.reduce((sum, r) => sum + r.totalStars, 0);
+      const quizStars = quizRecords.reduce((sum, r) => sum + r.rewardStars, 0);
+      setTotalEarnedStars(dailyStars + quizStars);
+    });
   }, []);
 
   useEffect(() => {
-    const child = getCurrentChild();
-    if (!child) {
-      // 检查是否有任何孩子
-      const { getChildren } = require("@/lib/children");
-      const children = getChildren();
-      if (children.length === 0) {
-        router.push("/children");
-        return;
+    const loadChild = async () => {
+      // 先尝试从 localStorage 获取（快速）
+      let child = getCurrentChild();
+      
+      if (!child) {
+        // 如果 localStorage 没有当前孩子，尝试从 Supabase 同步
+        const { getChildrenSync, getChildren } = await import("@/lib/children");
+        let children = getChildrenSync();
+        
+        // 如果 localStorage 没有数据，从 Supabase 加载
+        if (children.length === 0) {
+          try {
+            children = await getChildren();
+            // 如果从 Supabase 加载到数据，选择第一个
+            if (children.length > 0) {
+              const { setCurrentChildId } = await import("@/lib/children");
+              setCurrentChildId(children[0].id);
+              child = children[0];
+            }
+          } catch (error) {
+            console.error("加载孩子列表失败:", error);
+          }
+        } else {
+          // localStorage 有数据，选择第一个
+          const { setCurrentChildId } = await import("@/lib/children");
+          setCurrentChildId(children[0].id);
+          child = children[0];
+        }
+        
+        // 如果还是没有孩子，跳转到孩子管理页面
+        if (!child) {
+          router.push("/children");
+          return;
+        }
       }
-    } else {
+      
       setCurrentChild(child);
-    }
+    };
+    
+    loadChild();
   }, [router]);
 
   useEffect(() => {
@@ -145,7 +220,7 @@ export default function HomePage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-white/80 mb-2">当前可用星星</p>
-                  <StarDisplay count={currentChild.totalStars} size="xl" animated />
+                  <StarDisplay count={availableStars} size="xl" animated />
                 </div>
                 <div className="text-right">
                   <p className="text-white/80 mb-2">今日获得</p>
@@ -186,7 +261,7 @@ export default function HomePage() {
               <TrendingUp className="h-8 w-8 text-green-500" />
               <div>
                 <p className="text-sm text-muted-foreground">总获得</p>
-                <StarDisplay count={currentChild.totalStars} size="md" />
+                <StarDisplay count={totalEarnedStars} size="md" />
               </div>
             </div>
           </CardContent>

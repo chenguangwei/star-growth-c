@@ -6,8 +6,8 @@ import {
   getCurrentChild,
 } from "@/lib/children";
 import {
-  getAllDailyTaskRecords,
-  getQuizRecords,
+  getAllDailyTaskRecordsSync,
+  getQuizRecordsSync,
   getRewardExchanges,
 } from "@/lib/data";
 import { StarDisplay } from "@/components/StarDisplay";
@@ -26,20 +26,70 @@ export default function StatsPage() {
   const [exchanges, setExchanges] = useState<RewardExchange[]>([]);
 
   useEffect(() => {
-    const child = getCurrentChild();
-    if (!child) {
-      router.push("/children");
-    } else {
+    const loadChild = async () => {
+      // 先尝试从 localStorage 获取（快速）
+      let child = getCurrentChild();
+      
+      if (!child) {
+        // 如果 localStorage 没有当前孩子，尝试从 Supabase 同步
+        const { getChildrenSync, getChildren } = await import("@/lib/children");
+        let children = getChildrenSync();
+        
+        // 如果 localStorage 没有数据，从 Supabase 加载
+        if (children.length === 0) {
+          try {
+            children = await getChildren();
+          } catch (error) {
+            console.error("加载孩子列表失败:", error);
+          }
+        }
+        
+        if (children.length === 0) {
+          router.push("/children");
+          return;
+        }
+        
+        // 如果有孩子但没有选中，选择第一个
+        const { setCurrentChildId } = await import("@/lib/children");
+        setCurrentChildId(children[0].id);
+        child = children[0];
+      }
+      
       setCurrentChild(child);
-      loadData();
-    }
+      if (child) {
+        loadData();
+      }
+    };
+    
+    loadChild();
   }, [router]);
 
-  const loadData = () => {
+  const loadData = async () => {
     if (!currentChild) return;
-    setDailyRecords(getAllDailyTaskRecords(currentChild.id));
-    setQuizRecords(getQuizRecords(currentChild.id));
+    
+    // 先尝试从 localStorage 读取（快速）
+    let dailyRecords = getAllDailyTaskRecordsSync(currentChild.id);
+    let quizRecords = getQuizRecordsSync(currentChild.id);
+    setDailyRecords(dailyRecords);
+    setQuizRecords(quizRecords);
     setExchanges(getRewardExchanges(currentChild.id));
+    
+    // 如果 localStorage 数据不足，从 Supabase 同步
+    if (dailyRecords.length === 0 || quizRecords.length === 0) {
+      try {
+        const { getAllDailyTaskRecords, getQuizRecords } = await import("@/lib/data");
+        if (dailyRecords.length === 0) {
+          dailyRecords = await getAllDailyTaskRecords(currentChild.id);
+          setDailyRecords(dailyRecords);
+        }
+        if (quizRecords.length === 0) {
+          quizRecords = await getQuizRecords(currentChild.id);
+          setQuizRecords(quizRecords);
+        }
+      } catch (error) {
+        console.error("加载统计数据失败:", error);
+      }
+    }
   };
 
   // 计算统计数据

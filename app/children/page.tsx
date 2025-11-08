@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -14,16 +15,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ChildCard } from "@/components/ChildCard";
-import {
-  getChildren,
-  addChild,
-  updateChild,
-  deleteChild,
-  setCurrentChildId,
-  getCurrentChildId,
-} from "@/lib/children";
+import { setCurrentChildId, getCurrentChildId } from "@/lib/children";
 import type { Child } from "@/types";
-import { Plus, Users } from "lucide-react";
+import { Plus, Users, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 const EMOJI_OPTIONS = [
@@ -34,21 +28,46 @@ const EMOJI_OPTIONS = [
 ];
 
 export default function ChildrenPage() {
+  const { data: session } = useSession();
+  const router = useRouter();
   const [children, setChildren] = useState<Child[]>([]);
   const [currentChildId, setCurrentChildIdState] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingChild, setEditingChild] = useState<Child | null>(null);
   const [formData, setFormData] = useState({ name: "", avatar: "👧" });
-  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    if (!session?.user?.id) {
+      router.push("/auth/signin");
+      return;
+    }
     loadChildren();
-  }, []);
+  }, [session, router]);
 
-  const loadChildren = () => {
-    const allChildren = getChildren();
-    setChildren(allChildren);
-    setCurrentChildIdState(getCurrentChildId());
+  const loadChildren = async () => {
+    if (!session?.user?.id) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/children");
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      const childrenList = result.children || [];
+      setChildren(childrenList);
+      
+      // 加载当前选中的孩子ID
+      const currentId = getCurrentChildId();
+      setCurrentChildIdState(currentId);
+    } catch (error) {
+      console.error("加载孩子列表失败:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleAdd = () => {
@@ -63,37 +82,95 @@ export default function ChildrenPage() {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (child: Child) => {
-    if (confirm(`确定要删除 ${child.name} 的档案吗？\n\n注意：此操作不会删除历史记录。`)) {
-      deleteChild(child.id);
+  const handleDelete = async (child: Child) => {
+    if (!confirm(`确定要删除 ${child.name} 的档案吗？\n\n注意：此操作不会删除历史记录。`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/children?id=${child.id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || "删除失败");
+      }
+
+      // 如果删除的是当前选中的孩子，清除选择
+      if (currentChildId === child.id) {
+        setCurrentChildId(null);
+        setCurrentChildIdState(null);
+      }
+
       loadChildren();
+    } catch (error: any) {
+      console.error("删除失败:", error);
+      alert(error.message || "删除失败，请重试");
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name.trim()) {
       alert("请输入孩子姓名");
       return;
     }
 
-    if (editingChild) {
-      updateChild(editingChild.id, {
-        name: formData.name.trim(),
-        avatar: formData.avatar,
-      });
-    } else {
-      const newChild = addChild({
-        name: formData.name.trim(),
-        avatar: formData.avatar,
-      });
-      // 如果这是第一个孩子，自动设为当前孩子
-      if (children.length === 0) {
-        setCurrentChildId(newChild.id);
-      }
+    if (!session?.user?.id) {
+      alert("请先登录");
+      return;
     }
 
-    setIsDialogOpen(false);
-    loadChildren();
+    setIsSaving(true);
+    try {
+      if (editingChild) {
+        // 更新孩子
+        const response = await fetch("/api/children", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: editingChild.id,
+            name: formData.name.trim(),
+            avatar: formData.avatar,
+          }),
+        });
+
+        if (!response.ok) {
+          const result = await response.json();
+          throw new Error(result.error || "更新失败");
+        }
+      } else {
+        // 添加孩子
+        const response = await fetch("/api/children", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: formData.name.trim(),
+            avatar: formData.avatar,
+          }),
+        });
+
+        if (!response.ok) {
+          const result = await response.json();
+          throw new Error(result.error || "添加失败");
+        }
+
+        const result = await response.json();
+        // 如果这是第一个孩子，自动设为当前孩子
+        if (children.length === 0 && result.child) {
+          setCurrentChildId(result.child.id);
+          setCurrentChildIdState(result.child.id);
+        }
+      }
+
+      setIsDialogOpen(false);
+      loadChildren();
+    } catch (error: any) {
+      console.error("保存失败:", error);
+      alert(error.message || "保存失败，请重试");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleSelect = (child: Child) => {
@@ -115,13 +192,19 @@ export default function ChildrenPage() {
       </div>
 
       <div className="mb-6">
-        <Button onClick={handleAdd} className="gap-2">
+        <Button onClick={handleAdd} className="gap-2" disabled={isLoading}>
           <Plus className="h-4 w-4" />
           添加孩子
         </Button>
       </div>
 
-      {children.length === 0 ? (
+      {isLoading ? (
+        <Card>
+          <CardContent className="flex items-center justify-center py-12">
+            <p className="text-muted-foreground">加载中...</p>
+          </CardContent>
+        </Card>
+      ) : children.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Users className="h-16 w-16 text-muted-foreground mb-4" />
@@ -195,10 +278,16 @@ export default function ChildrenPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsDialogOpen(false)}
+              disabled={isSaving}
+            >
               取消
             </Button>
-            <Button onClick={handleSave}>保存</Button>
+            <Button onClick={handleSave} disabled={isSaving}>
+              {isSaving ? "保存中..." : "保存"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -42,13 +42,42 @@ export default function RewardsPage() {
   const [selectedReward, setSelectedReward] = useState<Reward | null>(null);
 
   useEffect(() => {
-    const child = getCurrentChild();
-    if (!child) {
-      router.push("/children");
-    } else {
+    const loadChild = async () => {
+      // 先尝试从 localStorage 获取（快速）
+      let child = getCurrentChild();
+      
+      if (!child) {
+        // 如果 localStorage 没有当前孩子，尝试从 Supabase 同步
+        const { getChildrenSync, getChildren } = await import("@/lib/children");
+        let children = getChildrenSync();
+        
+        // 如果 localStorage 没有数据，从 Supabase 加载
+        if (children.length === 0) {
+          try {
+            children = await getChildren();
+          } catch (error) {
+            console.error("加载孩子列表失败:", error);
+          }
+        }
+        
+        if (children.length === 0) {
+          router.push("/children");
+          return;
+        }
+        
+        // 如果有孩子但没有选中，选择第一个
+        const { setCurrentChildId } = await import("@/lib/children");
+        setCurrentChildId(children[0].id);
+        child = children[0];
+      }
+      
       setCurrentChild(child);
-      loadData();
-    }
+      if (child) {
+        loadData();
+      }
+    };
+    
+    loadChild();
   }, [router]);
 
   const loadData = () => {
@@ -57,8 +86,15 @@ export default function RewardsPage() {
     const allExchanges = getRewardExchanges(currentChild.id);
     setExchanges(allExchanges);
 
-    // 使用统一的计算函数
-    setAvailableStars(calculateAvailableStars(currentChild.id));
+    // 使用统一的计算函数（异步从 Supabase 同步）
+    calculateAvailableStars(currentChild.id).then((stars) => {
+      setAvailableStars(stars);
+    }).catch((error) => {
+      console.error("计算可用星星失败:", error);
+      // 如果异步计算失败，使用同步版本（仅从 localStorage）
+      const { calculateAvailableStarsSync } = require("@/lib/calculations");
+      setAvailableStars(calculateAvailableStarsSync(currentChild.id));
+    });
   };
 
   const handleExchange = (reward: Reward) => {
@@ -74,17 +110,24 @@ export default function RewardsPage() {
       return;
     }
 
-    addRewardExchange({
-      childId: currentChild.id,
-      rewardId: selectedReward.id,
-      rewardName: selectedReward.name,
-      starsCost: selectedReward.starsCost,
-      status: "used",
-    });
+    (async () => {
+      try {
+        await addRewardExchange({
+          childId: currentChild.id,
+          rewardId: selectedReward.id,
+          rewardName: selectedReward.name,
+          starsCost: selectedReward.starsCost,
+          status: "used",
+        });
 
-    loadData();
-    setExchangeDialogOpen(false);
-    setSelectedReward(null);
+        loadData();
+        setExchangeDialogOpen(false);
+        setSelectedReward(null);
+      } catch (error) {
+        console.error("兑换奖励失败:", error);
+        alert("兑换失败，请重试");
+      }
+    })();
   };
 
   if (!currentChild) {

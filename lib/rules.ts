@@ -5,8 +5,8 @@ import type {
   Reward,
 } from "@/types";
 
-// 每日任务规则定义
-export const DAILY_TASK_RULES: DailyTaskRule[] = [
+// 每日任务规则定义（默认规则）
+export const DEFAULT_DAILY_TASK_RULES: DailyTaskRule[] = [
   {
     id: "on-time-start",
     name: "准时启动奖",
@@ -155,6 +155,36 @@ export const DAILY_TASK_RULES: DailyTaskRule[] = [
     type: "simple",
   },
 ];
+
+// 为了向后兼容，保留 DAILY_TASK_RULES 作为默认规则的别名
+export const DAILY_TASK_RULES = DEFAULT_DAILY_TASK_RULES;
+
+// 获取孩子的任务规则（优先从数据库读取，如果没有则使用默认规则）
+export async function getChildTaskRules(childId?: string): Promise<DailyTaskRule[]> {
+  if (!childId) {
+    // 如果没有孩子ID，返回默认规则
+    return DEFAULT_DAILY_TASK_RULES;
+  }
+
+  try {
+    // 通过 API 路由获取任务规则（绕过 RLS）
+    const response = await fetch(`/api/task-rules?childId=${childId}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    const childRules = result.rules || [];
+    
+    // 如果孩子有自定义规则，返回自定义规则
+    // 否则返回默认规则
+    return childRules.length > 0 ? childRules : DEFAULT_DAILY_TASK_RULES;
+  } catch (error) {
+    console.error("获取孩子任务规则失败:", error);
+    // 出错时返回默认规则
+    return DEFAULT_DAILY_TASK_RULES;
+  }
+}
 
 // 单元测验规则
 export const QUIZ_RULES: QuizRule[] = [

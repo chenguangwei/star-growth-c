@@ -18,12 +18,12 @@ import {
 } from "@/lib/children";
 import {
   addQuizRecord,
-  getQuizRecords,
+  getQuizRecordsSync,
   updateQuizRecord,
 } from "@/lib/data";
 import { QUIZ_RULES } from "@/lib/rules";
 import type { QuizRecord } from "@/types";
-import { GraduationCap, Trophy, TrendingUp } from "lucide-react";
+import { GraduationCap, Trophy, TrendingUp, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { AlertCircle } from "lucide-react";
 import { getTodayDate } from "@/lib/data";
@@ -43,18 +43,60 @@ export default function QuizPage() {
   });
 
   useEffect(() => {
-    const child = getCurrentChild();
-    if (!child) {
-      router.push("/children");
-    } else {
+    const loadChild = async () => {
+      // 先尝试从 localStorage 获取（快速）
+      let child = getCurrentChild();
+      
+      if (!child) {
+        // 如果 localStorage 没有当前孩子，尝试从 Supabase 同步
+        const { getChildrenSync, getChildren } = await import("@/lib/children");
+        let children = getChildrenSync();
+        
+        // 如果 localStorage 没有数据，从 Supabase 加载
+        if (children.length === 0) {
+          try {
+            children = await getChildren();
+          } catch (error) {
+            console.error("加载孩子列表失败:", error);
+          }
+        }
+        
+        if (children.length === 0) {
+          router.push("/children");
+          return;
+        }
+        
+        // 如果有孩子但没有选中，选择第一个
+        const { setCurrentChildId } = await import("@/lib/children");
+        setCurrentChildId(children[0].id);
+        child = children[0];
+      }
+      
       setCurrentChild(child);
-      loadRecords();
-    }
+      if (child) {
+        loadRecords();
+      }
+    };
+    
+    loadChild();
   }, [router]);
 
-  const loadRecords = () => {
+  const loadRecords = async () => {
     if (!currentChild) return;
-    const quizRecords = getQuizRecords(currentChild.id);
+    
+    // 先尝试从 localStorage 读取（快速）
+    let quizRecords = getQuizRecordsSync(currentChild.id);
+    
+    // 如果 localStorage 没有数据，从 Supabase 同步
+    if (quizRecords.length === 0) {
+      try {
+        const { getQuizRecords } = await import("@/lib/data");
+        quizRecords = await getQuizRecords(currentChild.id);
+      } catch (error) {
+        console.error("加载测验记录失败:", error);
+      }
+    }
+    
     setRecords(quizRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
   };
 
@@ -96,28 +138,77 @@ export default function QuizPage() {
     const grade = parseInt(formData.grade) as 3 | 4 | 5;
     const rewardStars = calculateRewardStars(grade, previousGrade);
 
-    addQuizRecord({
-      childId: currentChild.id,
-      date: formData.date,
-      subject: formData.subject,
-      grade,
-      rewardStars,
-      corrected: false,
-      previousGrade,
-    });
+    (async () => {
+      try {
+        await addQuizRecord({
+          childId: currentChild.id,
+          date: formData.date,
+          subject: formData.subject,
+          grade,
+          rewardStars,
+          corrected: false,
+          previousGrade,
+        });
 
-    setFormData({
-      subject: "" as "语文" | "数学" | "英语" | "",
-      grade: "" as "3" | "4" | "5" | "",
-      date: getTodayDate(),
-    });
+        setFormData({
+          subject: "" as "语文" | "数学" | "英语" | "",
+          grade: "" as "3" | "4" | "5" | "",
+          date: getTodayDate(),
+        });
 
-    loadRecords();
+        loadRecords();
+      } catch (error) {
+        console.error("添加测验记录失败:", error);
+        alert("保存失败，请重试");
+      }
+    })();
   };
 
   const handleMarkCorrected = (recordId: string) => {
     updateQuizRecord(recordId, { corrected: true });
     loadRecords();
+  };
+
+  const handleDelete = async (recordId: string) => {
+    if (!confirm("确定要删除这条测验记录吗？删除后对应的星星奖励也会被扣除。")) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/quiz-records/${recordId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || "删除失败");
+      }
+
+      // 从 localStorage 删除并更新孩子星星总数
+      const { STORAGE_KEYS } = await import("@/types");
+      const data = localStorage.getItem(STORAGE_KEYS.QUIZ_RECORDS);
+      if (data) {
+        try {
+          const records: QuizRecord[] = JSON.parse(data);
+          const recordToDelete = records.find((r) => r.id === recordId);
+          const filtered = records.filter((r) => r.id !== recordId);
+          localStorage.setItem(STORAGE_KEYS.QUIZ_RECORDS, JSON.stringify(filtered));
+          
+          // 更新孩子的星星总数（扣除奖励的星星）
+          if (recordToDelete) {
+            const { updateChildStarsSync } = await import("@/lib/children");
+            updateChildStarsSync(currentChild.id, -recordToDelete.rewardStars);
+          }
+        } catch (error) {
+          console.error("更新 localStorage 失败:", error);
+        }
+      }
+
+      loadRecords();
+    } catch (error: any) {
+      console.error("删除测验记录失败:", error);
+      alert(error.message || "删除失败，请重试");
+    }
   };
 
   const getGradeColor = (grade: 3 | 4 | 5) => {
@@ -279,8 +370,18 @@ export default function QuizPage() {
                           </div>
                         )}
                       </div>
-                      <div className="text-right">
-                        <StarDisplay count={record.rewardStars} size="sm" />
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <StarDisplay count={record.rewardStars} size="sm" />
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDelete(record.id)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   </CardContent>

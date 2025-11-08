@@ -5,11 +5,19 @@ import type {
   QuizRecord,
   RewardExchange,
   OperationLog,
+  DailyTaskRule,
 } from "@/types";
 
 // ============ 孩子数据管理 ============
 
 export async function getChildren(userId: string): Promise<Child[]> {
+  if (!userId) {
+    console.error("getChildren: userId 为空");
+    return [];
+  }
+
+  console.log("getChildren: 查询用户ID:", userId);
+  
   const { data, error } = await supabase
     .from("children")
     .select("*")
@@ -18,8 +26,16 @@ export async function getChildren(userId: string): Promise<Child[]> {
 
   if (error) {
     console.error("获取孩子列表失败:", error);
+    console.error("错误详情:", {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    });
     return [];
   }
+
+  console.log("getChildren: 查询结果:", data);
 
   return (
     data?.map((child) => ({
@@ -424,5 +440,112 @@ export async function getOperationLogs(
       operator: log.operator,
     })) || []
   );
+}
+
+// ============ 任务规则管理 ============
+
+// 获取孩子的自定义任务规则
+export async function getTaskRules(childId: string): Promise<DailyTaskRule[]> {
+  const { data, error } = await supabase
+    .from("task_rules")
+    .select("*")
+    .eq("child_id", childId)
+    .eq("enabled", true)
+    .order("display_order", { ascending: true });
+
+  if (error) {
+    console.error("获取任务规则失败:", error);
+    return [];
+  }
+
+  return (
+    data?.map((rule) => ({
+      id: rule.rule_id,
+      name: rule.name,
+      description: rule.description,
+      baseStars: rule.base_stars,
+      maxCount: rule.max_count || undefined,
+      type: rule.type as "simple" | "countable" | "input",
+      inputConfig: rule.input_config
+        ? {
+            fields: rule.input_config.fields || [],
+            // 注意：自定义规则暂时不支持复杂的 calculateStars 函数
+            calculateStars: undefined,
+          }
+        : undefined,
+    })) || []
+  );
+}
+
+// 保存任务规则
+export async function saveTaskRule(
+  childId: string,
+  rule: DailyTaskRule
+): Promise<boolean> {
+  // 将 calculateStars 函数转换为可存储的配置
+  // 注意：自定义规则暂时不支持复杂的 inputConfig
+  const inputConfig = rule.inputConfig
+    ? {
+        fields: rule.inputConfig.fields || [],
+      }
+    : null;
+
+  const { error } = await supabase.from("task_rules").upsert({
+    child_id: childId,
+    rule_id: rule.id,
+    name: rule.name,
+    description: rule.description,
+    base_stars: rule.baseStars,
+    max_count: rule.maxCount || null,
+    type: rule.type,
+    input_config: inputConfig,
+    enabled: true,
+  });
+
+  if (error) {
+    console.error("保存任务规则失败:", error);
+    return false;
+  }
+
+  return true;
+}
+
+// 删除任务规则
+export async function deleteTaskRule(
+  childId: string,
+  ruleId: string
+): Promise<boolean> {
+  const { error } = await supabase
+    .from("task_rules")
+    .delete()
+    .eq("child_id", childId)
+    .eq("rule_id", ruleId);
+
+  if (error) {
+    console.error("删除任务规则失败:", error);
+    return false;
+  }
+
+  return true;
+}
+
+// 禁用/启用任务规则
+export async function toggleTaskRule(
+  childId: string,
+  ruleId: string,
+  enabled: boolean
+): Promise<boolean> {
+  const { error } = await supabase
+    .from("task_rules")
+    .update({ enabled })
+    .eq("child_id", childId)
+    .eq("rule_id", ruleId);
+
+  if (error) {
+    console.error("更新任务规则状态失败:", error);
+    return false;
+  }
+
+  return true;
 }
 

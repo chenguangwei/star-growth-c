@@ -18,14 +18,15 @@ import { StarDisplay } from "@/components/StarDisplay";
 import { Progress } from "@/components/ui/progress";
 import {
   getCurrentChild,
-  getChildren,
+  getChildrenSync,
 } from "@/lib/children";
 import {
-  getDailyTaskRecord,
+  getDailyTaskRecordSync,
   saveDailyTaskRecord,
   getTodayDate,
 } from "@/lib/data";
 import {
+  getChildTaskRules,
   DAILY_TASK_RULES,
 } from "@/lib/rules";
 import type {
@@ -44,33 +45,78 @@ export default function TasksPage() {
   const [inputDialogOpen, setInputDialogOpen] = useState(false);
   const [inputTaskId, setInputTaskId] = useState<string | null>(null);
   const [inputData, setInputData] = useState<Record<string, any>>({});
+  const [taskRules, setTaskRules] = useState<DailyTaskRule[]>(DAILY_TASK_RULES);
 
   useEffect(() => {
-    // 检查是否有当前孩子
-    const child = getCurrentChild();
-    if (!child) {
-      // 如果没有孩子，检查是否有任何孩子
-      const children = getChildren();
-      if (children.length === 0) {
-        router.push("/children");
-      } else {
+    const loadChild = async () => {
+      // 先尝试从 localStorage 获取（快速）
+      let child = getCurrentChild();
+      
+      if (!child) {
+        // 如果 localStorage 没有当前孩子，尝试从 Supabase 同步
+        let children = getChildrenSync();
+        
+        // 如果 localStorage 没有数据，从 Supabase 加载
+        if (children.length === 0) {
+          try {
+            const { getChildren } = await import("@/lib/children");
+            children = await getChildren();
+          } catch (error) {
+            console.error("加载孩子列表失败:", error);
+          }
+        }
+        
+        if (children.length === 0) {
+          router.push("/children");
+          return;
+        }
+        
         // 如果有孩子但没有选中，选择第一个
-        setCurrentChild(children[0]);
+        const { setCurrentChildId } = await import("@/lib/children");
+        setCurrentChildId(children[0].id);
+        child = children[0];
       }
-    } else {
+      
       setCurrentChild(child);
-    }
+    };
+    
+    loadChild();
   }, [router]);
 
   useEffect(() => {
     if (currentChild) {
+      loadTaskRules();
       loadRecordForDate(selectedDate);
     }
   }, [currentChild, selectedDate]);
 
-  const loadRecordForDate = (date: string) => {
+  const loadTaskRules = async () => {
     if (!currentChild) return;
-    const record = getDailyTaskRecord(currentChild.id, date);
+    
+    try {
+      const rules = await getChildTaskRules(currentChild.id);
+      setTaskRules(rules);
+    } catch (error) {
+      console.error("加载任务规则失败:", error);
+      // 如果加载失败，使用默认规则
+      setTaskRules(DAILY_TASK_RULES);
+    }
+  };
+
+  const loadRecordForDate = async (date: string) => {
+    if (!currentChild) return;
+    // 先尝试从 localStorage 读取（快速）
+    let record = getDailyTaskRecordSync(currentChild.id, date);
+    
+    // 如果 localStorage 没有，从 Supabase 同步
+    if (!record) {
+      try {
+        const { getDailyTaskRecord } = await import("@/lib/data");
+        record = await getDailyTaskRecord(currentChild.id, date);
+      } catch (error) {
+        console.error("加载任务记录失败:", error);
+      }
+    }
     if (record) {
       setTodayRecord(record);
     } else {
@@ -82,8 +128,8 @@ export default function TasksPage() {
         totalStars: 0,
       };
       setTodayRecord(newRecord);
-      // 立即保存初始记录
-      saveDailyTaskRecord(newRecord);
+      // 立即保存初始记录（异步）
+      saveDailyTaskRecord(newRecord).catch(console.error);
     }
   };
 
@@ -93,7 +139,7 @@ export default function TasksPage() {
   ) => {
     if (!currentChild || !todayRecord) return;
 
-    const rule = DAILY_TASK_RULES.find((r) => r.id === taskId);
+    const rule = taskRules.find((r) => r.id === taskId);
     if (!rule) return;
 
     const existing = todayRecord.tasks[taskId];
@@ -135,7 +181,7 @@ export default function TasksPage() {
     };
 
     setTodayRecord(updatedRecord);
-    saveDailyTaskRecord(updatedRecord);
+    saveDailyTaskRecord(updatedRecord).catch(console.error);
   };
 
   const handleToggleTask = (taskId: string) => {
@@ -203,7 +249,7 @@ export default function TasksPage() {
   const handleSaveInput = () => {
     if (!inputTaskId || !currentChild || !todayRecord) return;
 
-    const rule = DAILY_TASK_RULES.find((r) => r.id === inputTaskId);
+      const rule = taskRules.find((r) => r.id === inputTaskId);
     if (!rule || !rule.inputConfig) return;
 
     let stars = 0;
@@ -234,7 +280,7 @@ export default function TasksPage() {
     };
 
     setTodayRecord(updatedRecord);
-    saveDailyTaskRecord(updatedRecord);
+    saveDailyTaskRecord(updatedRecord).catch(console.error);
     setInputDialogOpen(false);
     setInputTaskId(null);
     setInputData({});
@@ -272,7 +318,7 @@ export default function TasksPage() {
   const completedTasks = Object.values(todayRecord.tasks || {}).filter(
     (t) => t.completed
   ).length;
-  const totalTasks = DAILY_TASK_RULES.length;
+  const totalTasks = taskRules.length;
   const progress = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
 
   // 检查每日最低3星规则
@@ -339,7 +385,7 @@ export default function TasksPage() {
       <div className="space-y-3">
         <h2 className="text-xl font-semibold">任务列表</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {DAILY_TASK_RULES.map((rule) => (
+          {taskRules.map((rule) => (
             <TaskCard
               key={rule.id}
               rule={rule}
@@ -357,16 +403,16 @@ export default function TasksPage() {
           <DialogHeader>
             <DialogTitle>
               {inputTaskId &&
-                DAILY_TASK_RULES.find((r) => r.id === inputTaskId)?.name}
+                taskRules.find((r) => r.id === inputTaskId)?.name}
             </DialogTitle>
             <DialogDescription>
               {inputTaskId &&
-                DAILY_TASK_RULES.find((r) => r.id === inputTaskId)?.description}
+                taskRules.find((r) => r.id === inputTaskId)?.description}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             {inputTaskId &&
-              DAILY_TASK_RULES.find((r) => r.id === inputTaskId)?.inputConfig
+              taskRules.find((r) => r.id === inputTaskId)?.inputConfig
                 ?.fields?.map((field) => (
                   <div key={field.name} className="space-y-2">
                     <Label htmlFor={field.name}>{field.label}</Label>
