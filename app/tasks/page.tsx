@@ -14,8 +14,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { TaskCard } from "@/components/TaskCard";
+import { QualityDialog } from "@/components/QualityDialog";
 import { StarDisplay } from "@/components/StarDisplay";
 import { Progress } from "@/components/ui/progress";
+import { addCountableTaskCompletion, removeCountableTaskCompletion } from "@/lib/countable-tasks";
 import {
   getCurrentChild,
   getChildrenSync,
@@ -46,6 +48,8 @@ export default function TasksPage() {
   const [inputTaskId, setInputTaskId] = useState<string | null>(null);
   const [inputData, setInputData] = useState<Record<string, any>>({});
   const [taskRules, setTaskRules] = useState<DailyTaskRule[]>(DAILY_TASK_RULES);
+  const [qualityDialogOpen, setQualityDialogOpen] = useState(false);
+  const [qualityTaskId, setQualityTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     const loadChild = async () => {
@@ -191,7 +195,7 @@ export default function TasksPage() {
     }
     
     updateTask(taskId, (item) => {
-      const rule = DAILY_TASK_RULES.find((r) => r.id === taskId);
+      const rule = taskRules.find((r) => r.id === taskId);
       if (!rule) {
         console.error("找不到任务规则:", taskId);
         return item || {
@@ -206,26 +210,32 @@ export default function TasksPage() {
       
       if (rule.type === "countable") {
         const currentCount = item?.count || 0;
-        if (currentCompleted) {
-          // 取消一个计数
-          const newCount = Math.max(0, currentCount - 1);
-          return {
+        const maxCount = rule.maxCount || Infinity;
+        const isAtMax = currentCount >= maxCount;
+        
+        if (isAtMax) {
+          // 已达到上限，移除最后一次记录
+          return removeCountableTaskCompletion(item || {
             taskId,
             taskName: rule.name,
-            completed: newCount > 0,
-            stars: newCount * rule.baseStars,
-            count: newCount,
-          };
+            completed: false,
+            stars: 0,
+            count: 0,
+          }, rule);
         } else {
-          // 增加一个计数
-          const maxCount = rule.maxCount || Infinity;
-          const newCount = Math.min(currentCount + 1, maxCount);
-          return {
+          // 未达到上限，添加一次计数
+          // 如果启用质量评估，应该通过质量对话框处理
+          // 这里只处理没有启用质量评估的情况
+          if (!rule.countableConfig?.qualityEnabled) {
+            return addCountableTaskCompletion(item, rule);
+          }
+          // 如果启用了质量评估，返回原状态（等待质量对话框确认）
+          return item || {
             taskId,
             taskName: rule.name,
-            completed: newCount > 0,
-            stars: newCount * rule.baseStars,
-            count: newCount,
+            completed: false,
+            stars: 0,
+            count: 0,
           };
         }
       } else {
@@ -237,6 +247,49 @@ export default function TasksPage() {
           stars: !currentCompleted ? rule.baseStars : 0,
         };
       }
+    });
+  };
+
+  const handleQualityConfirm = (taskId: string, quality: 1 | 2 | 3, reflection?: string, duration?: number) => {
+    if (!currentChild || !todayRecord) return;
+    
+    const rule = taskRules.find((r) => r.id === taskId);
+    if (!rule || rule.type !== "countable") return;
+    
+    updateTask(taskId, (item) => {
+      return addCountableTaskCompletion(item, rule, {
+        quality,
+        reflection,
+        duration,
+      });
+    });
+  };
+
+  const handleQuality = (taskId: string) => {
+    setQualityTaskId(taskId);
+    setQualityDialogOpen(true);
+  };
+
+  const handleDecrease = (taskId: string) => {
+    if (!currentChild || !todayRecord) return;
+    
+    const rule = taskRules.find((r) => r.id === taskId);
+    if (!rule || rule.type !== "countable") return;
+    
+    updateTask(taskId, (item) => {
+      // 如果当前没有计数，直接返回
+      if (!item || (item.count || 0) <= 0) {
+        return item || {
+          taskId,
+          taskName: rule.name,
+          completed: false,
+          stars: 0,
+          count: 0,
+        };
+      }
+      
+      // 移除最后一次记录
+      return removeCountableTaskCompletion(item, rule);
     });
   };
 
@@ -392,10 +445,39 @@ export default function TasksPage() {
               taskItem={todayRecord.tasks[rule.id]}
               onToggle={handleToggleTask}
               onInput={handleInputTask}
+              onQuality={handleQuality}
+              onDecrease={handleDecrease}
             />
           ))}
         </div>
       </div>
+
+      {/* 质量评估对话框 */}
+      {qualityTaskId && (
+        <QualityDialog
+          open={qualityDialogOpen}
+          onClose={() => {
+            setQualityDialogOpen(false);
+            setQualityTaskId(null);
+          }}
+          onConfirm={(quality, reflection, duration) => {
+            if (qualityTaskId) {
+              handleQualityConfirm(qualityTaskId, quality, reflection, duration);
+              setQualityDialogOpen(false);
+              setQualityTaskId(null);
+            }
+          }}
+          taskName={taskRules.find((r) => r.id === qualityTaskId)?.name || ""}
+          reflectionPrompts={
+            taskRules.find((r) => r.id === qualityTaskId)?.countableConfig
+              ?.reflectionPrompts
+          }
+          timeTrackingEnabled={
+            taskRules.find((r) => r.id === qualityTaskId)?.countableConfig
+              ?.timeTrackingEnabled
+          }
+        />
+      )}
 
       {/* 输入对话框 */}
       <Dialog open={inputDialogOpen} onOpenChange={setInputDialogOpen}>

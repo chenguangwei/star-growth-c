@@ -11,6 +11,16 @@ export interface Child {
   };
 }
 
+// 可计数任务的详细记录
+export interface CountableTaskDetail {
+  id: string; // 唯一ID
+  timestamp: string; // ISO时间戳
+  quality?: 1 | 2 | 3; // 质量评分：1=一般，2=良好，3=优秀
+  qualityStars?: number; // 质量奖励星星
+  reflection?: string; // 反思记录（可选）
+  duration?: number; // 持续时间（分钟，可选）
+}
+
 // 每日任务项
 export interface DailyTaskItem {
   taskId: string;
@@ -18,6 +28,7 @@ export interface DailyTaskItem {
   completed: boolean;
   stars: number;
   count?: number; // 用于需要计数的任务（如专注番茄奖）
+  countDetails?: CountableTaskDetail[]; // 详细计数记录（新增）
   metadata?: {
     // 特殊任务的额外数据
     correctCount?: number; // 听写正确数
@@ -82,6 +93,33 @@ export interface SystemConfig {
   rewards?: Reward[]; // 兑换菜单
 }
 
+// 游戏化配置（可选）
+export interface GamificationConfig {
+  emoji?: string; // emoji图标
+  category?: string; // 任务分类
+  difficulty?: "简单" | "中等" | "困难"; // 难度等级
+  unlockLevel?: number; // 解锁等级
+  levels?: Array<{
+    name: string; // 等级名称
+    count: number; // 所需完成次数
+    badge: string; // 徽章emoji
+  }>;
+}
+
+// 可计数任务增强配置（可选）
+export interface CountableTaskConfig {
+  // 质量评估配置
+  qualityEnabled?: boolean; // 是否启用质量评估
+  qualityBonus?: number[]; // [一般奖励, 良好奖励, 优秀奖励]
+  
+  // 反思提示配置
+  reflectionEnabled?: boolean; // 是否启用反思
+  reflectionPrompts?: string[]; // 反思提示问题
+  
+  // 时间记录配置
+  timeTrackingEnabled?: boolean; // 是否记录时间
+}
+
 // 每日任务规则定义
 export interface DailyTaskRule {
   id: string;
@@ -90,6 +128,8 @@ export interface DailyTaskRule {
   baseStars: number;
   maxCount?: number; // 最大完成次数（如专注番茄奖每天最多3次）
   type: "simple" | "countable" | "input"; // 简单任务/可计数任务/需要输入的任务
+  gamification?: GamificationConfig; // 游戏化配置（可选）
+  countableConfig?: CountableTaskConfig; // 可计数任务增强配置（可选）
   inputConfig?: {
     // 需要输入的任务配置
     fields?: Array<{
@@ -159,6 +199,39 @@ export interface OperationLog {
   starsChange?: number;
   reason?: string;
   operator?: string; // 操作人（父母）
+}
+
+// 成就徽章类型
+export type AchievementRarity = "common" | "rare" | "epic" | "legendary";
+
+// 成就条件类型
+export interface AchievementCondition {
+  type: "count" | "streak" | "combo" | "total_stars" | "perfect_days" | "task_specific";
+  taskId?: string; // 特定任务ID（用于task_specific类型）
+  value: number; // 目标值
+  period?: "daily" | "weekly" | "monthly" | "all_time"; // 时间周期
+}
+
+// 成就徽章定义
+export interface Achievement {
+  id: string;
+  name: string;
+  emoji: string;
+  description: string;
+  condition: AchievementCondition;
+  rarity: AchievementRarity;
+  rewardStars?: number; // 达成成就奖励的星星数
+  category?: string; // 分类：专注力、学习习惯、坚持等
+}
+
+// 成就记录
+export interface AchievementRecord {
+  id: string;
+  childId: string;
+  achievementId: string;
+  unlockedAt: string; // ISO时间戳
+  progress?: number; // 当前进度（可选，用于显示进度）
+  completed: boolean; // 是否已完成
 }
 
 // localStorage存储键名

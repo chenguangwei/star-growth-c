@@ -9,17 +9,29 @@ import type {
 export const DEFAULT_DAILY_TASK_RULES: DailyTaskRule[] = [
   {
     id: "on-time-start",
-    name: "准时启动奖",
-    description: "无需催促，在约定时间主动开始学习",
+    name: "⏰ 时间魔法师",
+    description: "在约定时间主动开始学习，不需要爸爸妈妈提醒！",
     baseStars: 1,
     type: "simple",
+    gamification: {
+      emoji: "⏰",
+      category: "习惯养成",
+      difficulty: "简单",
+      unlockLevel: 1,
+    },
   },
   {
     id: "morning-reading",
-    name: "晨读之星",
-    description: "每日坚持早读15分钟（朗读课文或指定读物），声音洪亮，有感情。",
+    name: "📖 晨读小精灵",
+    description: "每天早读15分钟，用洪亮的声音朗读，就像在舞台上表演一样！",
     baseStars: 1,
     type: "simple",
+    gamification: {
+      emoji: "📖",
+      category: "学习习惯",
+      difficulty: "简单",
+      unlockLevel: 1,
+    },
   },
   {
     id: "dictation-challenge",
@@ -50,19 +62,55 @@ export const DEFAULT_DAILY_TASK_RULES: DailyTaskRule[] = [
   },
   {
     id: "focus-tomato",
-    name: "专注番茄奖",
-    description: "每完成一个15-20分钟的专注学习时间，不离开座位，不玩小动作，只专注于当前任务。",
+    name: "🍅 专注番茄超人",
+    description: "完成一个15-20分钟的专注学习时间，就像超级英雄一样专注！",
     baseStars: 2,
     maxCount: 3,
     type: "countable",
+    gamification: {
+      emoji: "🍅",
+      category: "专注力训练",
+      difficulty: "中等",
+      unlockLevel: 2,
+      levels: [
+        { name: "番茄新手", count: 1, badge: "🥉" },
+        { name: "番茄达人", count: 2, badge: "🥈" },
+        { name: "番茄大师", count: 3, badge: "🥇" },
+      ],
+    },
+    countableConfig: {
+      qualityEnabled: true,
+      qualityBonus: [0, 1, 2], // [一般, 良好, 优秀]
+      reflectionEnabled: true,
+      reflectionPrompts: [
+        "这次专注学习，你感觉怎么样？",
+        "是什么帮助你保持了专注？",
+        "下次可以做得更好的地方是什么？",
+      ],
+      timeTrackingEnabled: true,
+    },
   },
   {
     id: "anti-interference",
-    name: "抗干扰小勇士",
-    description: "当周围有轻微干扰时（如家人走动），能不受影响，继续完成任务。",
+    name: "🛡️ 专注力盾牌",
+    description: "当周围有干扰时（如家人走动），能像盾牌一样保护自己的专注力！",
     baseStars: 1,
-    maxCount: 4,
+    maxCount: 3, // 从4降低到3
     type: "countable",
+    gamification: {
+      emoji: "🛡️",
+      category: "专注力训练",
+      difficulty: "困难",
+      unlockLevel: 3,
+    },
+    countableConfig: {
+      qualityEnabled: true,
+      qualityBonus: [0, 0, 1], // 只有优秀才有额外奖励
+      reflectionEnabled: true,
+      reflectionPrompts: [
+        "面对干扰时，你是怎么保持专注的？",
+      ],
+    },
   },
   {
     id: "checklist-completion",
@@ -82,18 +130,39 @@ export const DEFAULT_DAILY_TASK_RULES: DailyTaskRule[] = [
   },
   {
     id: "try-first",
-    name: "\"我先试一试\"奖",
-    description: "遇到难题时，不沮丧，不发脾气，没有立刻喊\"妈妈/爸爸我不会\"，而是自己先独立冷静思考。并进行了尝试。",
+    name: "🔍 探索小侦探",
+    description: "遇到难题时，先自己探索和思考，就像小侦探一样寻找答案！",
     baseStars: 1,
-    maxCount: 4,
+    maxCount: 3, // 从4降低到3
     type: "countable",
+    gamification: {
+      emoji: "🔍",
+      category: "学习能力",
+      difficulty: "困难",
+      unlockLevel: 3,
+    },
+    countableConfig: {
+      qualityEnabled: true,
+      qualityBonus: [0, 0, 1],
+      reflectionEnabled: true,
+      reflectionPrompts: [
+        "这次独立尝试，你学到了什么？",
+        "下次遇到难题，你会怎么做？",
+      ],
+    },
   },
   {
     id: "reading",
-    name: "阅读小能手",
+    name: "📚 阅读小能手",
     description: "完成每日的阅读任务（亲子或自主）",
     baseStars: 1,
     type: "simple",
+    gamification: {
+      emoji: "📚",
+      category: "学习习惯",
+      difficulty: "简单",
+      unlockLevel: 1,
+    },
   },
   {
     id: "calculation",
@@ -134,11 +203,25 @@ export const DEFAULT_DAILY_TASK_RULES: DailyTaskRule[] = [
   },
   {
     id: "housework",
-    name: "家务小帮手",
-    description: "主动完成一件力所能及的家务",
+    name: "🧹 家务小助手",
+    description: "主动完成家务，成为家里的超级小助手！",
     baseStars: 1,
-    maxCount: 2,
+    maxCount: 3, // 从2提高到3
     type: "countable",
+    gamification: {
+      emoji: "🧹",
+      category: "生活技能",
+      difficulty: "简单",
+      unlockLevel: 1,
+    },
+    countableConfig: {
+      qualityEnabled: true,
+      qualityBonus: [0, 0, 1],
+      reflectionEnabled: true,
+      reflectionPrompts: [
+        "完成家务后，你有什么感受？",
+      ],
+    },
   },
   {
     id: "sibling-help",

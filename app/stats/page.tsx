@@ -11,12 +11,15 @@ import {
   getRewardExchanges,
 } from "@/lib/data";
 import { StarDisplay } from "@/components/StarDisplay";
+import { AchievementGrid } from "@/components/AchievementGrid";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
-import { TrendingUp, Calendar, Award, Gift, GraduationCap } from "lucide-react";
+import { TrendingUp, Calendar, Award, Gift, GraduationCap, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { AlertCircle } from "lucide-react";
-import type { DailyTaskRecord, QuizRecord, RewardExchange } from "@/types";
+import type { DailyTaskRecord, QuizRecord, RewardExchange, AchievementRecord } from "@/types";
+import { checkAndUpdateAchievements } from "@/lib/achievements";
+import { calculateTotalEarnedStars } from "@/lib/calculations";
 
 export default function StatsPage() {
   const router = useRouter();
@@ -24,6 +27,8 @@ export default function StatsPage() {
   const [dailyRecords, setDailyRecords] = useState<DailyTaskRecord[]>([]);
   const [quizRecords, setQuizRecords] = useState<QuizRecord[]>([]);
   const [exchanges, setExchanges] = useState<RewardExchange[]>([]);
+  const [achievementRecords, setAchievementRecords] = useState<AchievementRecord[]>([]);
+  const [totalStars, setTotalStars] = useState(0);
 
   useEffect(() => {
     const loadChild = async () => {
@@ -90,14 +95,64 @@ export default function StatsPage() {
         console.error("加载统计数据失败:", error);
       }
     }
+    
+    // 计算总星星数
+    const total = await calculateTotalEarnedStars(currentChild.id);
+    setTotalStars(total);
+    
+    // 加载并检查成就
+    await loadAchievements();
+  };
+  
+  const loadAchievements = async () => {
+    if (!currentChild) return;
+    
+    try {
+      // 确保数据已加载
+      let finalDailyRecords = dailyRecords;
+      let finalQuizRecords = quizRecords;
+      
+      if (finalDailyRecords.length === 0) {
+        const { getAllDailyTaskRecords } = await import("@/lib/data");
+        finalDailyRecords = await getAllDailyTaskRecords(currentChild.id);
+      }
+      if (finalQuizRecords.length === 0) {
+        const { getQuizRecords } = await import("@/lib/data");
+        finalQuizRecords = await getQuizRecords(currentChild.id);
+      }
+      
+      // 获取成就记录
+      const response = await fetch(`/api/achievements?childId=${currentChild.id}`);
+      if (response.ok) {
+        const result = await response.json();
+        let records: AchievementRecord[] = result.achievements || [];
+        
+        // 计算总星星数（如果还没有）
+        const calculatedTotal = finalDailyRecords.reduce((sum, r) => sum + r.totalStars, 0) +
+          finalQuizRecords.reduce((sum, r) => sum + r.rewardStars, 0);
+        
+        // 检查并更新成就
+        const updatedRecords = await checkAndUpdateAchievements(currentChild.id, {
+          dailyRecords: finalDailyRecords,
+          quizRecords: finalQuizRecords,
+          totalStars: totalStars || calculatedTotal,
+        });
+        
+        setAchievementRecords(updatedRecords);
+      }
+    } catch (error) {
+      console.error("加载成就失败:", error);
+    }
   };
 
   // 计算统计数据
-  const totalStars = dailyRecords.reduce((sum, r) => sum + r.totalStars, 0) +
+  const calculatedTotalStars = dailyRecords.reduce((sum, r) => sum + r.totalStars, 0) +
     quizRecords.reduce((sum, r) => sum + r.rewardStars, 0);
-
+  
+  // 使用状态中的totalStars（从异步计算获取）或计算值
+  const displayTotalStars = totalStars || calculatedTotalStars;
   const exchangedStars = exchanges.reduce((sum, e) => sum + e.starsCost, 0);
-  const availableStars = totalStars - exchangedStars;
+  const availableStars = displayTotalStars - exchangedStars;
 
   // 本周数据
   const today = new Date();
@@ -191,7 +246,7 @@ export default function StatsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <StarDisplay count={totalStars} size="lg" />
+            <StarDisplay count={displayTotalStars} size="lg" />
           </CardContent>
         </Card>
         <Card>
@@ -366,6 +421,21 @@ export default function StatsPage() {
             )}
           </CardContent>
         </Card>
+      </div>
+
+      {/* 成就系统 */}
+      <div className="mb-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Trophy className="h-6 w-6 text-yellow-500" />
+          <h2 className="text-2xl font-semibold">成就徽章</h2>
+        </div>
+        {currentChild && (
+          <AchievementGrid
+            childId={currentChild.id}
+            records={achievementRecords}
+            showProgress={true}
+          />
+        )}
       </div>
     </div>
   );

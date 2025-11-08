@@ -57,7 +57,7 @@ export function ChildSelector({ onChildChange }: ChildSelectorProps) {
             setChildren(syncedChildren);
             const currentId = current?.id;
             if (currentId) {
-              const syncedCurrent = syncedChildren.find((c) => c.id === currentId);
+              const syncedCurrent = syncedChildren.find((c: any) => c.id === currentId);
               if (syncedCurrent) {
                 setCurrentChild(syncedCurrent);
               } else {
