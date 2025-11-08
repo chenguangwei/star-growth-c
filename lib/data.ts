@@ -91,34 +91,21 @@ export function getDailyTaskRecordSync(
   }
 }
 
-// 获取所有每日任务记录（混合存储：优先从 localStorage，如果没有则从 Supabase 同步）
+// 获取所有每日任务记录（总是从 Supabase 获取最新数据，确保数据一致性）
 export async function getAllDailyTaskRecords(
   childId: string
 ): Promise<DailyTaskRecord[]> {
   if (typeof window === "undefined") return [];
 
-  // 先尝试从 localStorage 读取
-  const data = localStorage.getItem(STORAGE_KEYS.DAILY_TASKS);
-  if (data) {
-    try {
-      const records: DailyTaskRecord[] = JSON.parse(data);
-      const childRecords = records.filter((r) => r.childId === childId);
-      if (childRecords.length > 0) {
-        return childRecords;
-      }
-    } catch {
-      // 解析失败，继续从 Supabase 读取
-    }
-  }
-
-  // 如果 localStorage 没有数据，从 Supabase 读取并缓存
+  // 总是从 Supabase 获取最新数据
   try {
     const response = await fetch(`/api/daily-tasks?childId=${childId}`);
     if (response.ok) {
       const result = await response.json();
       const records = result.records || [];
+      
+      // 更新 localStorage 缓存
       if (records.length > 0) {
-        // 缓存到 localStorage
         const localData = localStorage.getItem(STORAGE_KEYS.DAILY_TASKS);
         let allRecords: DailyTaskRecord[] = [];
         if (localData) {
@@ -140,11 +127,22 @@ export async function getAllDailyTaskRecords(
           }
         });
         localStorage.setItem(STORAGE_KEYS.DAILY_TASKS, JSON.stringify(allRecords));
-        return records;
       }
+      
+      return records;
     }
   } catch (error) {
     console.error("从 Supabase 获取每日任务记录失败:", error);
+    // 如果 Supabase 失败，回退到 localStorage（用于离线场景）
+    const data = localStorage.getItem(STORAGE_KEYS.DAILY_TASKS);
+    if (data) {
+      try {
+        const records: DailyTaskRecord[] = JSON.parse(data);
+        return records.filter((r) => r.childId === childId);
+      } catch {
+        return [];
+      }
+    }
   }
 
   return [];
@@ -223,32 +221,19 @@ export async function saveDailyTaskRecord(record: DailyTaskRecord): Promise<void
 
 // ============ 单元测验数据管理 ============
 
-// 获取单元测验记录（混合存储：优先从 localStorage，如果没有则从 Supabase 同步）
+// 获取单元测验记录（总是从 Supabase 获取最新数据，确保数据一致性）
 export async function getQuizRecords(childId: string): Promise<QuizRecord[]> {
   if (typeof window === "undefined") return [];
 
-  // 先尝试从 localStorage 读取
-  const data = localStorage.getItem(STORAGE_KEYS.QUIZ_RECORDS);
-  if (data) {
-    try {
-      const records: QuizRecord[] = JSON.parse(data);
-      const childRecords = records.filter((r) => r.childId === childId);
-      if (childRecords.length > 0) {
-        return childRecords;
-      }
-    } catch {
-      // 解析失败，继续从 Supabase 读取
-    }
-  }
-
-  // 如果 localStorage 没有数据，从 Supabase 读取并缓存
+  // 总是从 Supabase 获取最新数据
   try {
     const response = await fetch(`/api/quiz-records?childId=${childId}`);
     if (response.ok) {
       const result = await response.json();
       const records = result.records || [];
+      
+      // 更新 localStorage 缓存
       if (records.length > 0) {
-        // 缓存到 localStorage
         const localData = localStorage.getItem(STORAGE_KEYS.QUIZ_RECORDS);
         let allRecords: QuizRecord[] = [];
         if (localData) {
@@ -268,11 +253,22 @@ export async function getQuizRecords(childId: string): Promise<QuizRecord[]> {
           }
         });
         localStorage.setItem(STORAGE_KEYS.QUIZ_RECORDS, JSON.stringify(allRecords));
-        return records;
       }
+      
+      return records;
     }
   } catch (error) {
     console.error("从 Supabase 获取单元测验记录失败:", error);
+    // 如果 Supabase 失败，回退到 localStorage（用于离线场景）
+    const data = localStorage.getItem(STORAGE_KEYS.QUIZ_RECORDS);
+    if (data) {
+      try {
+        const records: QuizRecord[] = JSON.parse(data);
+        return records.filter((r) => r.childId === childId);
+      } catch {
+        return [];
+      }
+    }
   }
 
   return [];
