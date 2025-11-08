@@ -284,7 +284,7 @@ export const QUIZ_RULES: QuizRule[] = [
   },
   {
     grade: 4,
-    rewardStars: 6,
+    rewardStars: 8,
     progressBonus: {
       from: 3,
       to: 4,
