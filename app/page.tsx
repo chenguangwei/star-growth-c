@@ -13,6 +13,7 @@ import {
   getAllDailyTaskRecordsSync,
   getTodayDate,
 } from "@/lib/data";
+import type { DailyTaskRecord, QuizRecord } from "@/types";
 import { calculateAvailableStars, calculateTotalEarnedStars } from "@/lib/calculations";
 import { Calendar, CheckCircle2, GraduationCap, Gift, TrendingUp } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -91,8 +92,8 @@ export default function HomePage() {
       const { getAllDailyTaskRecordsSync, getQuizRecordsSync } = require("@/lib/data");
       const dailyRecords = getAllDailyTaskRecordsSync(child.id);
       const quizRecords = getQuizRecordsSync(child.id);
-      const dailyStars = dailyRecords.reduce((sum, r) => sum + r.totalStars, 0);
-      const quizStars = quizRecords.reduce((sum, r) => sum + r.rewardStars, 0);
+      const dailyStars = dailyRecords.reduce((sum: number, r: DailyTaskRecord) => sum + r.totalStars, 0);
+      const quizStars = quizRecords.reduce((sum: number, r: QuizRecord) => sum + r.rewardStars, 0);
       setTotalEarnedStars(dailyStars + quizStars);
     });
   }, []);

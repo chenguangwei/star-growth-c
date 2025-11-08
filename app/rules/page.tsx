@@ -102,8 +102,8 @@ export default function RulesPage() {
       console.error("加载孩子列表失败:", error);
       // 如果 API 获取失败，尝试从 localStorage 获取（兼容性处理）
       try {
-        const { getChildren: getChildrenLocal } = await import("@/lib/children");
-        const localChildren = getChildrenLocal();
+        const { getChildrenSync } = await import("@/lib/children");
+        const localChildren = getChildrenSync();
         console.log("从 localStorage 获取的孩子列表:", localChildren);
         if (localChildren.length > 0) {
           setChildren(localChildren);

@@ -128,9 +128,12 @@ export default function QuizPage() {
       return;
     }
 
+    // 类型断言：经过上面的检查，subject 和 grade 肯定不为空
+    const subject = formData.subject as "语文" | "数学" | "英语";
+
     // 检查是否已有该科目最近一次记录（用于计算进步）
     const recentRecord = records
-      .filter((r) => r.subject === formData.subject)
+      .filter((r) => r.subject === subject)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
 
     const previousGrade = recentRecord?.grade;
@@ -143,7 +146,7 @@ export default function QuizPage() {
         await addQuizRecord({
           childId: currentChild.id,
           date: formData.date,
-          subject: formData.subject,
+          subject,
           grade,
           rewardStars,
           corrected: false,
@@ -195,7 +198,7 @@ export default function QuizPage() {
           localStorage.setItem(STORAGE_KEYS.QUIZ_RECORDS, JSON.stringify(filtered));
           
           // 更新孩子的星星总数（扣除奖励的星星）
-          if (recordToDelete) {
+          if (recordToDelete && currentChild) {
             const { updateChildStarsSync } = await import("@/lib/children");
             updateChildStarsSync(currentChild.id, -recordToDelete.rewardStars);
           }

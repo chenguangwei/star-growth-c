@@ -375,7 +375,7 @@ export function updateQuizRecord(
     // 如果修改了rewardStars，更新孩子的星星总数
     if (updates.rewardStars !== undefined) {
       const delta = updates.rewardStars - oldRecord.rewardStars;
-      updateChildStars(records[index].childId, delta);
+      updateChildStarsSync(records[index].childId, delta);
     }
 
     return true;
