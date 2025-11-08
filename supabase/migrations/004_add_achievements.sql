@@ -25,7 +25,7 @@ CREATE POLICY "Users can view own children achievement records" ON public.achiev
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM public.children
-      WHERE children.id = achievement_records.child_id
+      WHERE children.id = achievement_records.child_idupda
       AND children.user_id = auth.uid()::text
     )
   );

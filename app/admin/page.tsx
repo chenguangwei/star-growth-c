@@ -15,12 +15,15 @@ import {
 } from "@/components/ui/dialog";
 import {
   getChildren,
+  getChildrenSync,
   updateChildStars,
   deleteChild,
 } from "@/lib/children";
 import {
   getAllDailyTaskRecords,
+  getAllDailyTaskRecordsSync,
   getQuizRecords,
+  getQuizRecordsSync,
   getRewardExchanges,
   addOperationLog,
 } from "@/lib/data";
@@ -40,20 +43,21 @@ export default function AdminPage() {
   const [adjustStars, setAdjustStars] = useState("");
   const [adjustReason, setAdjustReason] = useState("");
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (password === ADMIN_PASSWORD) {
       setIsAuthenticated(true);
-      loadChildren();
+      await loadChildren();
     } else {
       alert("密码错误");
     }
   };
 
-  const loadChildren = () => {
-    setChildren(getChildren());
+  const loadChildren = async () => {
+    const children = await getChildren();
+    setChildren(children);
   };
 
-  const handleAdjustStars = () => {
+  const handleAdjustStars = async () => {
     if (!selectedChild || !adjustStars) return;
 
     const delta = parseInt(adjustStars);
@@ -63,7 +67,7 @@ export default function AdminPage() {
     }
 
     const oldStars = selectedChild.totalStars;
-    updateChildStars(selectedChild.id, delta);
+    await updateChildStars(selectedChild.id, delta);
 
     addOperationLog({
       childId: selectedChild.id,
@@ -78,26 +82,27 @@ export default function AdminPage() {
     setAdjustDialogOpen(false);
     setAdjustStars("");
     setAdjustReason("");
-    loadChildren();
+    await loadChildren();
+    const children = await getChildren();
     setSelectedChild(
-      getChildren().find((c) => c.id === selectedChild.id) || null
+      children.find((c) => c.id === selectedChild.id) || null
     );
   };
 
-  const handleDeleteChild = (child: Child) => {
+  const handleDeleteChild = async (child: Child) => {
     if (
       confirm(
         `确定要删除 ${child.name} 的档案吗？\n\n此操作不会删除历史记录，但会清除当前孩子的选中状态。`
       )
     ) {
-      deleteChild(child.id);
-      loadChildren();
+      await deleteChild(child.id);
+      await loadChildren();
     }
   };
 
-  const handleDeception = (child: Child) => {
+  const handleDeception = async (child: Child) => {
     if (confirm(`确定要扣除 ${child.name} 10个星星（欺骗行为）吗？`)) {
-      updateChildStars(child.id, -10);
+      await updateChildStars(child.id, -10);
 
       addOperationLog({
         childId: child.id,
@@ -109,9 +114,10 @@ export default function AdminPage() {
         operator: "管理员",
       });
 
-      loadChildren();
+      await loadChildren();
+      const children = await getChildren();
       setSelectedChild(
-        getChildren().find((c) => c.id === child.id) || null
+        children.find((c) => c.id === child.id) || null
       );
     }
   };
@@ -155,8 +161,9 @@ export default function AdminPage() {
   }
 
   const getChildStats = (child: Child) => {
-    const dailyRecords = getAllDailyTaskRecords(child.id);
-    const quizRecords = getQuizRecords(child.id);
+    // 使用同步版本以快速显示，如果需要最新数据可以使用异步版本
+    const dailyRecords = getAllDailyTaskRecordsSync(child.id);
+    const quizRecords = getQuizRecordsSync(child.id);
     const exchanges = getRewardExchanges(child.id);
 
     const totalEarned =
