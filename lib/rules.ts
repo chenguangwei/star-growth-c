@@ -354,7 +354,7 @@ export const REWARD_RULE: RewardRule = {
   ],
   specialRate: {
     threshold: 200,
-    multiplier: 0.8, // 超过200星星：星星数 * 0.8 = 兑换钱币数
+    multiplier: 0.5, // 超过200星星：星星数 * 0.5 = 兑换钱币数
   },
 };
 

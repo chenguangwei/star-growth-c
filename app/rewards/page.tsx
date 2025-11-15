@@ -205,7 +205,7 @@ export default function RewardsPage() {
               </p>
               {currentChild.totalStars >= 200 && (
                 <p className="text-xs text-muted-foreground">
-                  超过200星特殊规则：星星数 × 0.8
+                  超过200星特殊规则：星星数 × 0.5
                 </p>
               )}
             </div>
