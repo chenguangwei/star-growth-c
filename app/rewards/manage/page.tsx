@@ -287,9 +287,7 @@ export default function RewardsManagePage() {
       <div className="mb-6">
         <Label className="mb-2 block">选择孩子</Label>
         <ChildSelector
-          children={children}
-          currentChildId={selectedChildId}
-          onChildChange={(childId) => setSelectedChildId(childId)}
+          onChildChange={(child) => setSelectedChildId(child?.id || null)}
         />
       </div>
 
