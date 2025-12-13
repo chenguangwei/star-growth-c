@@ -364,6 +364,12 @@ export async function getRewardExchanges(
 export async function addRewardExchange(
   exchange: Omit<RewardExchange, "id" | "date">
 ): Promise<RewardExchange> {
+  // #region agent log
+  if (typeof window !== "undefined") {
+    fetch('http://127.0.0.1:7242/ingest/386a1f2e-b938-40b6-90a2-1cfb52f7051d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/supabase/data.ts:364',message:'Supabase addRewardExchange开始',data:{childId:exchange.childId,rewardId:exchange.rewardId,starsCost:exchange.starsCost},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  }
+  // #endregion
+
   const { data, error } = await supabase
     .from("reward_exchanges")
     .insert({
@@ -379,11 +385,36 @@ export async function addRewardExchange(
     .single();
 
   if (error || !data) {
+    // #region agent log
+    if (typeof window !== "undefined") {
+      fetch('http://127.0.0.1:7242/ingest/386a1f2e-b938-40b6-90a2-1cfb52f7051d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/supabase/data.ts:387',message:'Supabase插入失败',data:{error:error?.message,errorCode:error?.code,errorDetails:error?.details,errorHint:error?.hint,childId:exchange.childId,rewardId:exchange.rewardId,starsCost:exchange.starsCost},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    }
+    // #endregion
+    console.error("Supabase 插入兑换记录失败:", {
+      error: error?.message,
+      code: error?.code,
+      details: error?.details,
+      hint: error?.hint,
+      childId: exchange.childId,
+      rewardId: exchange.rewardId,
+    });
     throw new Error(error?.message || "添加兑换记录失败");
   }
 
+  // #region agent log
+  if (typeof window !== "undefined") {
+    fetch('http://127.0.0.1:7242/ingest/386a1f2e-b938-40b6-90a2-1cfb52f7051d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/supabase/data.ts:386',message:'Supabase插入成功，准备更新孩子星星',data:{exchangeId:data.id,childId:exchange.childId,starsCost:exchange.starsCost},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  }
+  // #endregion
+
   // 扣除孩子的星星
   await updateChildStars(exchange.childId, -exchange.starsCost);
+
+  // #region agent log
+  if (typeof window !== "undefined") {
+    fetch('http://127.0.0.1:7242/ingest/386a1f2e-b938-40b6-90a2-1cfb52f7051d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/supabase/data.ts:390',message:'Supabase addRewardExchange完成',data:{exchangeId:data.id,childId:exchange.childId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  }
+  // #endregion
 
   return {
     id: data.id,

@@ -84,6 +84,10 @@ export default function RewardsPage() {
   const loadData = async () => {
     if (!currentChild) return;
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/386a1f2e-b938-40b6-90a2-1cfb52f7051d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/rewards/page.tsx:84',message:'loadData开始',data:{childId:currentChild.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+
     // 加载奖励列表（包含自定义奖励）
     try {
       const childRewards = await getChildRewards(currentChild.id);
@@ -96,14 +100,28 @@ export default function RewardsPage() {
     const allExchanges = getRewardExchanges(currentChild.id);
     setExchanges(allExchanges);
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/386a1f2e-b938-40b6-90a2-1cfb52f7051d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/rewards/page.tsx:100',message:'调用calculateAvailableStars前',data:{localExchangesCount:allExchanges.length,localExchangedStars:allExchanges.reduce((sum,e)=>sum+e.starsCost,0)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+
     // 使用统一的计算函数（异步从 Supabase 同步）
     calculateAvailableStars(currentChild.id).then((stars) => {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/386a1f2e-b938-40b6-90a2-1cfb52f7051d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/rewards/page.tsx:101',message:'calculateAvailableStars完成',data:{calculatedStars:stars},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
       setAvailableStars(stars);
     }).catch((error) => {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/386a1f2e-b938-40b6-90a2-1cfb52f7051d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/rewards/page.tsx:103',message:'calculateAvailableStars失败，使用同步版本',data:{error:error instanceof Error?error.message:String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       console.error("计算可用星星失败:", error);
       // 如果异步计算失败，使用同步版本（仅从 localStorage）
       const { calculateAvailableStarsSync } = require("@/lib/calculations");
-      setAvailableStars(calculateAvailableStarsSync(currentChild.id));
+      const syncStars = calculateAvailableStarsSync(currentChild.id);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/386a1f2e-b938-40b6-90a2-1cfb52f7051d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/rewards/page.tsx:106',message:'同步版本计算结果',data:{syncStars},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      setAvailableStars(syncStars);
     });
   };
 
@@ -112,7 +130,7 @@ export default function RewardsPage() {
     setExchangeDialogOpen(true);
   };
 
-  const handleConfirmExchange = () => {
+  const handleConfirmExchange = async () => {
     if (!selectedReward || !currentChild) return;
 
     if (availableStars < selectedReward.starsCost) {
@@ -120,24 +138,46 @@ export default function RewardsPage() {
       return;
     }
 
-    (async () => {
-      try {
-        await addRewardExchange({
-          childId: currentChild.id,
-          rewardId: selectedReward.id,
-          rewardName: selectedReward.name,
-          starsCost: selectedReward.starsCost,
-          status: "used",
-        });
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/386a1f2e-b938-40b6-90a2-1cfb52f7051d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/rewards/page.tsx:115',message:'handleConfirmExchange开始',data:{childId:currentChild.id,rewardId:selectedReward.id,starsCost:selectedReward.starsCost,availableStarsBefore:availableStars},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
 
-        loadData();
-        setExchangeDialogOpen(false);
-        setSelectedReward(null);
-      } catch (error) {
-        console.error("兑换奖励失败:", error);
-        alert("兑换失败，请重试");
-      }
-    })();
+    try {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/386a1f2e-b938-40b6-90a2-1cfb52f7051d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/rewards/page.tsx:124',message:'调用addRewardExchange前',data:{childId:currentChild.id,rewardId:selectedReward.id,starsCost:selectedReward.starsCost},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+
+      await addRewardExchange({
+        childId: currentChild.id,
+        rewardId: selectedReward.id,
+        rewardName: selectedReward.name,
+        starsCost: selectedReward.starsCost,
+        status: "used",
+      });
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/386a1f2e-b938-40b6-90a2-1cfb52f7051d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/rewards/page.tsx:133',message:'addRewardExchange完成，准备更新状态',data:{availableStarsBefore:availableStars,starsCost:selectedReward.starsCost,newAvailableStars:availableStars - selectedReward.starsCost},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
+
+      // 立即更新可用星星（从当前值减去兑换的星星）
+      setAvailableStars(availableStars - selectedReward.starsCost);
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/386a1f2e-b938-40b6-90a2-1cfb52f7051d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/rewards/page.tsx:136',message:'调用loadData前',data:{availableStarsState:availableStars},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+
+      // 重新加载数据（包括兑换历史）
+      loadData();
+      
+      setExchangeDialogOpen(false);
+      setSelectedReward(null);
+    } catch (error) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/386a1f2e-b938-40b6-90a2-1cfb52f7051d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/rewards/page.tsx:142',message:'兑换失败',data:{error:error instanceof Error?error.message:String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      console.error("兑换奖励失败:", error);
+      alert("兑换失败，请重试");
+    }
   };
 
   if (!currentChild) {

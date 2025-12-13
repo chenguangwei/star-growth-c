@@ -428,12 +428,48 @@ export async function addRewardExchange(
     JSON.stringify(exchanges)
   );
 
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/386a1f2e-b938-40b6-90a2-1cfb52f7051d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/data.ts:431',message:'localStorage保存完成，准备保存到Supabase',data:{childId:newExchange.childId,starsCost:newExchange.starsCost,localStorageExchangesCount:exchanges.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
+
   // 同步扣除孩子星星到 localStorage
   updateChildStarsSync(newExchange.childId, -newExchange.starsCost);
 
-  // 异步保存到 Supabase（后台同步）
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/386a1f2e-b938-40b6-90a2-1cfb52f7051d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/data.ts:434',message:'updateChildStarsSync完成',data:{childId:newExchange.childId,starsCost:newExchange.starsCost},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+  // #endregion
+
+  // 异步保存到 Supabase（通过 API 路由，使用服务端客户端）
   try {
-    const supabaseExchange = await supabaseData.addRewardExchange(exchange);
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/386a1f2e-b938-40b6-90a2-1cfb52f7051d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/data.ts:443',message:'开始保存到Supabase（通过API）',data:{childId:exchange.childId,rewardId:exchange.rewardId,starsCost:exchange.starsCost},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    
+    const response = await fetch("/api/reward-exchanges", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        childId: exchange.childId,
+        rewardId: exchange.rewardId,
+        rewardName: exchange.rewardName,
+        starsCost: exchange.starsCost,
+        status: exchange.status,
+        notes: exchange.notes,
+      }),
+    });
+
+    if (!response.ok) {
+      const result = await response.json();
+      throw new Error(result.error || "保存到 Supabase 失败");
+    }
+
+    const result = await response.json();
+    const supabaseExchange = result.exchange;
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/386a1f2e-b938-40b6-90a2-1cfb52f7051d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/data.ts:462',message:'Supabase保存成功（通过API）',data:{supabaseId:supabaseExchange.id,childId:exchange.childId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    
     // 如果 Supabase 返回了 ID，使用 Supabase 的 ID
     if (supabaseExchange.id) {
       newExchange.id = supabaseExchange.id;
@@ -445,9 +481,16 @@ export async function addRewardExchange(
       }
     }
   } catch (error) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/386a1f2e-b938-40b6-90a2-1cfb52f7051d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/data.ts:475',message:'Supabase保存失败（通过API）',data:{error:error instanceof Error?error.message:String(error),childId:exchange.childId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     console.error("保存兑换记录到 Supabase 失败:", error);
     // 即使 Supabase 失败，localStorage 已经保存，不影响用户体验
   }
+
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/386a1f2e-b938-40b6-90a2-1cfb52f7051d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/data.ts:456',message:'addRewardExchange完成',data:{childId:newExchange.childId,exchangeId:newExchange.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
 
   return newExchange;
 }
